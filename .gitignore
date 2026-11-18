@@ -1,0 +1,10 @@
+.venv/
+environments/
+data/
+__pycache__/
+*.pyc
+runtime.log
+runtime-error.log
+test-results/
+dist/
+build/

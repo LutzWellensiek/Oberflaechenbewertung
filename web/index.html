@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="de">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Oberflächenlabor · Lokale KI-Bewertung</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/extra.css"></head>
+<body>
+<aside class="sidebar">
+  <a class="brand" href="/" aria-label="Oberflächenlabor Start"><span class="brand-icon">◈</span><span>Oberflächen<span class="brand-light">labor</span></span></a>
+  <div class="local-badge"><span class="dot"></span> LOKAL AUF DEINEM RECHNER</div>
+  <nav aria-label="Hauptnavigation"><button class="nav active" data-tab="workspace"><span>▦</span> Bilder bewerten</button><button class="nav" data-tab="models"><span>◇</span> Modelle & Lernen</button><button class="nav" data-tab="settings"><span>⚙</span> Projekteinstellungen</button></nav>
+  <div class="sidebar-label">GEMEINSAMER DATENSATZ</div>
+  <div class="stats"><div><b id="ratedCount">0</b><span>bewertet</span></div><div><b id="pendingCount">0</b><span>offen</span></div></div>
+  <progress id="progress" max="1" value="0"></progress><div id="progressText" class="muted small">Noch keine Bilder importiert</div>
+  <div class="sidebar-bottom"><span class="dot"></span> Bilder und Bewertungen bleiben lokal.<p>Offline nutzbar nach einmaliger Modellinstallation.</p><a href="/api/export" download="trainingsdaten.csv">↓ Trainingsübersicht als CSV</a></div>
+</aside>
+<main>
+  <header><div><div class="eyebrow">HUMAN-IN-THE-LOOP WORKSPACE</div><h1 id="pageTitle">Oberflächen bewerten</h1></div><button id="importOpen" class="primary">＋ Bilderordner importieren</button></header>
+  <section id="workspace" class="tab">
+    <div class="toolbar"><div class="model-select"><span class="dot"></span><label for="modelSelect">Aktives Modell</label><select id="modelSelect"></select></div><span id="modelStatus" class="pill">Manuell</span><button id="activeLearning" class="quiet">Unsichere Bilder zuerst ↗</button></div>
+    <div class="work-grid">
+      <section class="image-panel card">
+        <div class="panel-heading"><div><span class="step">01</span><b>Bereich auswählen</b></div><button id="fullImage" class="quiet small">Ganzes Bild</button></div>
+        <div id="empty" class="empty"><div class="empty-symbol">▧</div><h2>Dein erster Blick ins Detail</h2><p>Importiere einen Bilderordner, markiere die Oberfläche<br>und bring der KI deine Qualitätskriterien bei.</p><button id="emptyImport" class="primary">Bilderordner auswählen</button><span>JPG · PNG · TIFF · BMP · WebP</span></div>
+        <div id="imageWork" hidden><div class="image-meta"><b id="imageName"></b><span id="dimensions"></span></div><div class="stage"><canvas id="sourceCanvas" aria-label="Originalbild: Mit der Maus einen rechteckigen Ausschnitt ziehen"></canvas></div><div class="image-footer"><span id="cropInfo">Mit der Maus einen Bereich markieren</span><span>Original bleibt unverändert</span></div></div>
+        <div class="queue-toolbar"><select id="statusFilter" aria-label="Bildstatus"><option value="pending">Offene Bilder</option><option value="rated">Bewertete Bilder</option><option value="ignored">Ignorierte Bilder</option></select><span id="queueCount">0 Bilder</span><button id="previous" class="square" aria-label="Vorheriges Bild">←</button><button id="next" class="square" aria-label="Nächstes Bild">→</button></div>
+        <div id="imageQueue" class="image-queue"></div>
+      </section>
+      <section class="review-panel card">
+        <div class="panel-heading"><div><span class="step">02</span><b>Ausschnitt & Bewertung</b></div><span class="pill pale">10–100 Punkte</span></div>
+        <div class="crop-preview"><canvas id="cropCanvas" aria-label="Vergrößerte Vorschau des Bildausschnitts"></canvas><span id="cropPlaceholder">Dein Ausschnitt erscheint hier</span></div>
+        <div class="review-body">
+          <div class="ai-box"><div class="ai-title"><span>✧ KI-Vorschlag</span><button id="predict" class="quiet small">Analysieren ↗</button></div><div class="ai-result"><strong id="aiScore">—</strong><p id="aiReason">Wähle ein Modell oder starte mit deiner eigenen Bewertung.</p></div><div class="ai-actions"><button id="acceptPrediction" class="small" disabled>Vorschlag übernehmen</button><span id="uncertainty"></span></div></div>
+          <div class="score-label"><label>Hauptbewertung</label><span>Stufe wählen</span></div><div id="scoreButtons" class="score-buttons"></div>
+          <div class="fine-label"><label for="fineSlider">Feinabstimmung <span class="muted">· optional</span></label><output id="scoreValue">—</output></div>
+          <div class="fine-control"><button id="minus" class="square" aria-label="Ein Punkt weniger">−</button><input id="fineSlider" type="range" min="0" max="9" value="0" aria-label="Feinabstimmung innerhalb der Hauptstufe"><button id="plus" class="square" aria-label="Ein Punkt mehr">＋</button></div>
+          <div class="date-heading"><label for="captureDate">Aufnahmedatum</label><select id="dateSource" aria-label="Datumsquelle"></select></div><input id="captureDate" type="datetime-local" step="1"><p id="dateWarning" class="date-warning"></p>
+          <details class="date-details"><summary>Ursprüngliche Datumsinformationen</summary><pre id="allDates"></pre></details>
+          <div id="savedNotice" class="saved-notice" hidden></div><button id="save" class="primary save" disabled>Bewertung speichern & weiter →</button><button id="ignore" class="ignore">Bild ignorieren</button><div class="keyboard-hint">1–9 / 0: Stufe · ← →: Feinabstimmung · Enter: Speichern</div>
+        </div>
+      </section>
+    </div>
+    <div id="comparison" class="comparison card" hidden><b>Modellvergleich für diesen Ausschnitt</b><div id="comparisonRows"></div><p class="muted small">Vorschläge verschiedener Modelle bleiben gespeichert. Modelle nacheinander auswählen und analysieren.</p></div>
+  </section>
+  <section id="models" class="tab" hidden><div class="intro"><h2>Ein Datensatz. Für jedes Modell.</h2><p>Deine Ausschnitte und Bewertungen werden einmal gespeichert und bei jedem Modellwechsel automatisch übernommen. Jedes Modell erhält eine eigene Python-Umgebung, eigene Gewichte und einen eigenen Lernstand. Deine festgelegten Bewertungen bleiben dabei gleich.</p></div><p id="sharedDataset" class="hardware-note"></p><div class="hardware-note">Erkannte Testhardware: NVIDIA GTX 1650 Ti · 4 GB VRAM. DINOv2 ist der leichteste Einstieg. Die größeren Modelle standardmäßig auf der CPU testen; das kann langsam sein. Größenangaben unten beziehen sich auf unquantisierte Hugging-Face-Gewichte.</div><div id="modelCards" class="model-cards"></div><div class="card learning-info"><h2>So lernt die Anwendung</h2><p>85 % Gewicht für die Hauptstufe, 15 % für die Feinabstimmung. Nach jeder Bestätigung wird das ausgewählte Lernmodell im Hintergrund neu trainiert. Beim Wechsel übernimmt das nächste Modell alle gespeicherten Bewertungen automatisch. Bereits aktuelle Lernstände werden sofort wiederverwendet. DINOv2 nutzt vortrainierte Bildmerkmale. Bei den Vision-Sprachmodellen lernt ein zusätzliches Korrekturmodell aus Farb- und Texturmerkmalen; die großen Modellgewichte bleiben unverändert.</p><p>Unsicherheit ist eine Heuristik. Die Trefferquote wird aus Vorschlägen vor deiner Bestätigung berechnet; sie ist keine unabhängige Testmessung. Mehr Daten garantieren keine höhere Genauigkeit. Verwende konsistente Kriterien und unterschiedliche Beispiele.</p><div id="metrics"></div></div></section>
+  <section id="settings" class="tab" hidden><div class="card settings-card"><h2>Deine Qualitätskriterien</h2><p class="muted">Beschreibe, was eine gute Oberfläche ausmacht. Nutze einheitliche Kriterien für den gesamten Datensatz.</p><label for="criteria">Anweisung an die Vision-Modelle</label><textarea id="criteria" rows="7"></textarea><label for="outputFolder">Ausgabeordner für bewertete Ausschnitte</label><div class="input-row"><input id="outputFolder"><button id="browseOutput">Auswählen …</button></div><p class="muted small">Namensschema: YYYY-MM-DD_HH-MM-SS_Originalname_Score.jpg. Bei Namenskonflikten wird eine laufende Nummer ergänzt.</p><button id="saveSettings" class="primary">Einstellungen speichern</button><hr><h3>Lokale Ablage</h3><p>Die Datenbank, unveränderte Importkopien und Lernstände liegen im Projektordner unter <code>data</code>. Sichere diesen Ordner regelmäßig zusammen mit deinem Ausgabeordner. Für eine konsistente Sicherung die Anwendung vorher schließen.</p><p>Gemma benötigt eine freigeschaltete Hugging-Face-Lizenz und einen <code>HF_TOKEN</code> in der lokalen Umgebung vor dem Start. Das Token wird nicht im Projekt gespeichert.</p></div></section>
+  <footer><span>OBERFLÄCHENLABOR</span><span>Dein Urteil ist der Maßstab.</span></footer>
+</main>
+<dialog id="importDialog"><form id="importForm"><div class="dialog-header"><h2>Bilderordner importieren</h2><button type="button" id="closeImport" class="square" aria-label="Schließen">×</button></div><p>Der gesamte Ordner wird eingelesen. Originale bleiben erhalten; die Anwendung legt lokale Arbeitskopien an und merkt sich deinen Fortschritt.</p><label for="importFolder">Bilderordner</label><div class="input-row"><input id="importFolder" placeholder="C:\Bilder\Oberflächen" required><button type="button" id="browseImport">Auswählen …</button></div><label class="checkbox"><input type="checkbox" id="recursive" checked> Unterordner einschließen</label><button type="submit" class="primary">Bilder importieren →</button></form></dialog>
+<div id="jobBar" class="job-bar" hidden><span class="spinner"></span><div><b id="jobTitle"></b><p id="jobMessage"></p></div></div><div id="toast" class="toast" role="status" hidden></div>
+<script src="/app.js"></script>
+</body></html>
