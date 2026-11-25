@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 echo Veroeffentliche Oberflaechenbewertung auf GitHub.
 echo README und Quellcode kommen ins Repository; die EXE-Teile in einen Release.
-echo Das Paket enthaelt auch deine 36 gespeicherten Bildbewertungen.
+echo Das Paket enthaelt auch die beim Paketbau gesicherten Bildbewertungen.
 echo Falls GitHub eine Anmeldung verlangt, bitte im Browser selbst anmelden.
 if exist ".venv\Scripts\python.exe" (
   ".venv\Scripts\python.exe" -I -S -X utf8 "scripts\publish_github.py"

@@ -44,7 +44,7 @@ def worker_command(root, model_id, vision_only=False):
     if is_portable(root):
         return [str(interpreter(root, model_id)), "-I", "-S", "-X", "utf8",
                 "-u", str(root / "portable_bootstrap.py"), "--model", model_id] + (["--vision-only"] if vision_only else [])
-    return [str(interpreter(root, model_id)), "-u", str(root / "model_worker.py"), model_id]
+    return [str(interpreter(root, model_id)), "-u", str(root / "model_worker.py"), model_id] + (["--vision-only"] if vision_only else [])
 
 
 def relocate_database(db, old_root, new_root):
@@ -63,6 +63,21 @@ def relocate_database(db, old_root, new_root):
     for table, column in (("images", "stored_path"), ("labels", "output_path")):
         for row_id, value in db.execute(f"SELECT id,{column} FROM {table}").fetchall():
             db.execute(f"UPDATE {table} SET {column}=? WHERE id=?", (moved(value), row_id))
+    tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if "model_runs" in tables:
+        for run_id, recipe_text in db.execute("SELECT id,recipe FROM model_runs").fetchall():
+            recipe = json.loads(recipe_text)
+            for sample in recipe.get("samples", []):
+                for key in ("stored_path", "output_path"):
+                    if sample.get(key):
+                        sample[key] = moved(sample[key])
+            db.execute("UPDATE model_runs SET recipe=? WHERE id=?", (json.dumps(recipe, ensure_ascii=False), run_id))
+    if "label_history" in tables:
+        for history_id, snapshot_text in db.execute("SELECT id,snapshot FROM label_history").fetchall():
+            snapshot = json.loads(snapshot_text)
+            if snapshot.get("output_path"):
+                snapshot["output_path"] = moved(snapshot["output_path"])
+                db.execute("UPDATE label_history SET snapshot=? WHERE id=?", (json.dumps(snapshot, ensure_ascii=False), history_id))
     row = db.execute("SELECT value FROM settings WHERE key='output'").fetchone()
     if row:
         db.execute("UPDATE settings SET value=? WHERE key='output'", (json.dumps(moved(json.loads(row[0])), ensure_ascii=False),))

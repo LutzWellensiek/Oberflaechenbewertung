@@ -1,105 +1,118 @@
-# Oberflächenbewertung
+﻿# Oberflächenlabor
 
-Vollständig lokale Windows-Anwendung zum Zuschneiden, Organisieren und Bewerten von Oberflächenbildern. Eigene Qualitätskriterien werden anhand bestätigter Nutzerbewertungen gelernt. Originalbilder bleiben unverändert.
+Lokale Windows-Anwendung zum Sichten, Zuschneiden, Umbenennen und **menschlichen Bewerten** von Oberflächenbildern. Modelltraining und KI-Ergebnisse stehen auf einer eigenen Seite. Originaldateien bleiben erhalten.
 
-## Windows-Version herunterladen
+## Starten
 
-**[Aktuellen Download unter Releases öffnen](https://github.com/LutzWellensiek/Oberflaechenbewertung/releases/latest)**
+Im Projektordner `Start.bat` doppelklicken. Die Oberfläche öffnet sich auf `http://127.0.0.1:8765`.
 
-Auf dem Zielrechner sind weder Python noch Git oder eine Paketinstallation nötig. Die CPU-Version funktioniert ohne NVIDIA-Grafikkarte und nach dem Download vollständig offline.
+Für die ausgepackte portable Fassung: `dist/Oberflaechenbewertung/Oberflaechenbewertung.exe` starten. Eine bereits laufende Anwendung zuerst beenden und danach neu starten, damit neuer Backend-Code geladen wird.
 
-Die rund 3,7 GB große EXE wird in zwei Teilen bereitgestellt, da GitHub pro Release-Datei weniger als 2 GiB erlaubt. Diese drei Dateien aus dem Release in **denselben Ordner** herunterladen:
+Die portable Windows-Version steht unter [GitHub Releases](https://github.com/LutzWellensiek/Oberflaechenbewertung/releases/latest). Beide `.part`-Dateien und `Zusammenfuegen.bat` in denselben Ordner herunterladen und die BAT doppelklicken. Sie setzt die große EXE zusammen und prüft ihre SHA256-Prüfsumme. Anschließend die EXE starten; sie entpackt den Programmordner neben sich. Vorübergehend etwa 13 GB freien Speicher vorsehen.
 
-1. [Oberflaechenbewertung-CPU.exe.part01](https://github.com/LutzWellensiek/Oberflaechenbewertung/releases/latest/download/Oberflaechenbewertung-CPU.exe.part01)
-2. [Oberflaechenbewertung-CPU.exe.part02](https://github.com/LutzWellensiek/Oberflaechenbewertung/releases/latest/download/Oberflaechenbewertung-CPU.exe.part02)
-3. [Zusammenfuegen.bat](https://github.com/LutzWellensiek/Oberflaechenbewertung/releases/latest/download/Zusammenfuegen.bat)
-
-`Zusammenfuegen.bat` doppelklicken. Windows setzt die EXE zusammen und prüft ihre SHA256-Prüfsumme. Danach `Oberflaechenbewertung-CPU.exe` doppelklicken. Die EXE packt beim ersten Start daneben den etwa 4,9 GB großen Ordner `Oberflaechenbewertung` aus. Hier dauerte das Auspacken rund zwei Minuten. Anschließend öffnet sich die lokale Oberfläche im vorhandenen Browser.
-
-Für Downloadteile, zusammengesetzte EXE und ausgepacktes Programm zusammen vorübergehend etwa **13 GB Festplattenplatz** vorsehen. Nach erfolgreichem Zusammenfügen können die beiden Downloadteile entfernt werden. EXE und ausgepackter Programmordner benötigen zusammen etwa 9 GB.
-
-Die von GitHub automatisch angebotenen **Source code**-Archive enthalten den Quellcode. Die ausführbare Windows-Version steht in den oben genannten Release-Dateien. [GitHubs Größenlimit für Release-Dateien](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
-
-## Enthaltene Modelle
-
-| Auswahl | Bewertungsgrundlage |
-|---|---|
-| Manuell + Basislernmodell | Farb- und Texturmerkmale, sofort ohne großes Vision-Modell nutzbar |
-| DINOv2 Small | Eigene vortrainierte Bildmerkmale mit angelerntem Qualitätsmodell |
-| Qwen3-VL 2B | Eigener vortrainierter Bildencoder mit angelerntem Qualitätsmodell |
-
-Die portable Fassung enthält die Laufzeit, CPU-Bibliotheken und Modellgewichte bereits. DINOv2 ist die sparsamste Vision-Variante. Qwen lädt im normalen CPU-Ablauf nur seinen Bildencoder; die zusätzliche Sprachgenerierung wird ausgelassen. Dadurch werden keine Grafikkarte und keine CUDA-Installation benötigt. Für den Bildencoder prüft die Anwendung vorsichtig etwa 2,5 GB freien RAM. Die vollständigen Sprachmodellgewichte sind mitgeliefert; optionale unangepasste Rohbewertungen benötigen etwa 6 GB freien RAM im BF16-Betrieb und können deutlich länger dauern. Die Speichergrenzen sind Schätzungen.
-
-Die großen Modellgewichte bleiben eingefroren. Pro Modell lernt ein eigener kleiner Kopf die Hauptqualitätsstufe und Feinbewertung. Hauptstufen werden stärker gewichtet als kleine Punktunterschiede. Mit passenden zusätzlichen Beispielen kann sich die Qualität verbessern; eine Verbesserung ist nicht garantiert.
-
-## Datenstand und Sicherung
-
-**Das erste Paket enthält 36 gespeicherte Nutzerbewertungen samt Originalkopien, zugeschnittenen Bildern und passenden CPU-Lernständen.** Die Kriterien sind individuell angelernt und keine allgemeingültige Qualitätsnorm.
-
-Ausschnitt, Bewertung und Datum gehören zum gemeinsamen Datensatz. Beim Modellwechsel muss kein Bild neu zugeschnitten oder bewertet werden. Die Modelle führen getrennte Lernstände.
-
-Neue Bewertungen werden dauerhaft unter `Oberflaechenbewertung/data` gespeichert. Diesen Ordner regelmäßig sichern. Beim Umziehen den vollständigen ausgepackten Programmordner mitnehmen. Ein erneuter Start derselben Paket-EXE überschreibt vorhandene Nutzerdaten nicht; die EXE selbst bleibt der ursprüngliche Datenstand. Interne Bildpfade werden beim Start an den neuen Programmort angepasst. Bewusst extern gewählte Ausgabeordner bleiben extern und müssen zusätzlich gesichert werden.
-
-Zum Beenden im Startfenster auf **Anwendung beenden** klicken. Das Schließen des Browsers beendet den lokalen Server nicht.
-
-## Arbeitsablauf
-
-Ordner auswählen → Bild anzeigen → Rechteck markieren → Ausschnitt prüfen → KI-Vorschlag anfordern → Hauptbewertung wählen → optional feinjustieren → Datum prüfen → Speichern → nächstes Bild.
-
-- Bewertung von 10 bis 100, mit deutlich anwählbaren Zehnerstufen und optionalen Einer-Schritten.
-- EXIF-Aufnahmedatum, ersatzweise Datei- oder Importdatum; manuell korrigierbar. Ursprüngliche Datumsinformationen bleiben erhalten.
-- JPEG-Export nach `YYYY-MM-DD_HH-MM-SS_Originalname_Score.jpg`, mit eindeutigen Zusätzen bei Namenskonflikten.
-- Originaldateien werden nicht überschrieben. Bearbeitungsentwürfe bleiben gespeichert.
-- Ignorierte Bilder gehen nicht ins Training ein. Bestätigte Bewertungen sind schreibgeschützt.
-- Unsichere Bilder lassen sich bevorzugt zur manuellen Bewertung vorschlagen.
-
-## Modellvergleich
-
-Unter **Modelle & Lernen → Installierte Modelle testen** werden die festen Nutzerbewertungen für alle drei Modelle verwendet. Das jeweilige Testbild und byteidentische Originalkopien bleiben bei Training und Skalierung ausgeschlossen. Bewertungsgrundlage, mittlere absolute Punktabweichung und richtige Hauptstufe werden getrennt ausgewiesen. Unangepasste Sprachmodell-Rohbewertungen sind eine optionale zusätzliche Auswertung.
-
-Einzelergebnisse und Fortschritt bleiben nach Neuladen sichtbar. Nutzerbewertungen und Bildexporte werden durch einen Test nicht verändert. Mit wenigen Bildern und engem Scorebereich bleiben Vergleiche vorläufig. Punktabweichung und Stufentreffer messen unterschiedliche Eigenschaften.
-
-## Lokale Ablage
-
-```text
-data/surface.sqlite3        Bilder, Daten, Entwürfe, Bewertungen, Vorhersagen, Fehler
-data/originals/             Unveränderte Importkopien
-data/output/                Bewertete JPEG-Ausschnitte
-data/profiles/<modell>/     Eigene Lernköpfe
-data/benchmarks/             Vergleichsergebnisse als JSON und CSV
-environments/<modell>/      Modellgewichte und Konfiguration
-runtime/                    Portable Python-Laufzeit und CPU-Bibliotheken
-logs/                       Serverprotokolle der portablen Version
-```
-
-## Entwicklung und Paketbau
-
-Der Quellcode benötigt Python 3.12 (64 Bit). `Setup.bat` richtet die Entwicklungsumgebung ein, `Start.bat` startet die Anwendung. Für Anwender der portablen Version sind diese Schritte nicht erforderlich.
+Änderungen im Quellcode aktualisieren bestehende Downloadarchive nicht automatisch. Das lokale ausgepackte Programm lässt sich ohne Austausch von Daten oder Modellgewichten aktualisieren:
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest tests.test_workflow tests.test_portable tests.test_publish -v
-node --check web/app.js
-.\.venv\Scripts\python.exe scripts/build_portable.py --stage-only
-.\.venv\Scripts\python.exe scripts/smoke_portable.py build/portable-cpu
-.\.venv\Scripts\python.exe scripts/build_portable.py --archive-only
+.\.venv\Scripts\python.exe scripts/update_portable.py dist/Oberflaechenbewertung
 ```
 
-Der Paketbau verwendet die bereits vorhandenen lokalen Python-, CPU-Paket- und Modellinstallationen. Der native Starter wird mit dem Windows-.NET-Compiler erstellt. Die SQLite-Backup-API erzeugt einen konsistenten Datenbankschnappschuss; Bildkopien werden per SHA256 geprüft. Nach erfolgreichem CPU-Test kann der geprüfte Lernstand paketiert werden.
+Die Aktualisierung sichert zuvor den ersetzten Code unter `data/backups`. Zum Beenden `Beenden.bat` oder im portablen Startfenster **Anwendung beenden** verwenden; das Schließen des Browsers beendet den Server nicht.
 
-`GitHub_veroeffentlichen.bat` veröffentlicht README und Quellcode in diesem Repository und die vorbereiteten EXE-Teile als Release. Auf dem Entwicklungsrechner werden dafür Git, Internetzugriff und Schreibrechte auf das Repository benötigt. Die vorhandene GitHub-Anmeldung wird über Git Credential Manager verwendet; Zugangsdaten werden weder in Dateien noch im Repository gespeichert. Ein neuer Release wird erst nach Prüfung aller Uploads veröffentlicht. Nach einem Abbruch können bereits korrekt hochgeladene Teile wiederverwendet werden.
+## Bewerten und zuschneiden
 
-Die großen Laufzeiten, Modellgewichte, lokale Datenbanken und Bildordner werden nicht in die Git-Historie eingecheckt. Der ausdrücklich mitgelieferte Datenschnappschuss befindet sich innerhalb der Release-EXE.
+1. Bilderordner importieren; seine Beschriftung und Unterordner bleiben bekannt.
+2. Bilder erscheinen standardmäßig in gemischter Reihenfolge. Die Mischung bleibt während der Sitzung stabil; **Neu mischen** erzeugt eine neue Reihenfolge.
+3. Direkt ein Rechteck im Original aufziehen: Auch offene Entwürfe und neu geöffnete Bewertungen zeigen sofort das Gesamtbild. Der gewählte Ausschnitt erscheint anschließend groß und lässt sich dort durch erneutes Ziehen direkt verfeinern. Ein Klick auf das kleine Gesamtbild oder **Esc** zeigt wieder alle Bildbereiche.
+4. Hauptstufe wählen, optional Einer einstellen und Aufnahmezeitpunkt prüfen.
+5. Speichern: JPEG-Ausschnitt und menschliches Urteil werden abgelegt. Dabei wird kein KI-Training gestartet.
 
-## Prüfungen und Fehler
+**Skala:** 0 = nicht bewertbar. Qualität = ganze Werte von 10 bis 99. 1–9 wählen 10–90; Einer bleiben möglich, z. B. 33 oder 99. Alte gespeicherte Bewertungen werden bei der Migration nicht umgerechnet.
 
-Die zwölf Workflow- und Portabilitätsprüfungen sowie echte CPU-Modellaufrufe aus dem ausgepackten Programmordner waren erfolgreich. Die Start-EXE wurde mit `Windows/System32` als einzigem PATH geprüft; die Python-Module stammen aus dem Paket. Ein erneuter Paketstart ließ die vorhandene Datenbank unverändert. Diese Prüfungen belegen den technischen Ablauf, keine garantierte Bewertungsgenauigkeit.
+Mehrdeutige Bilder können bis zu drei alternative plausible Werte erhalten. 0 ist keine Qualitätsstufe und wird aus Qualitätstraining ausgeschlossen. Ob ein Bild grundsätzlich zur Aufgabe passt, wird separat mit **passend / unpassend** markiert.
 
-Fehler stehen unter **Projekteinstellungen → Lokales Fehlerprotokoll**, in `logs/server-error.log` und `environments/<modell>/inference.log`. Bei Startproblemen der Paket-EXE liegt gegebenenfalls `Startfehler.txt` neben ihr. Der Programmordner muss beschreibbar sein. Windows 10/11 (64 Bit) und der in Windows enthaltene .NET Framework 4.x werden vorausgesetzt. Eine Firmenrichtlinie, die eigene Programme sperrt, wird durch die portable Verpackung nicht umgangen.
+### Tastatur
 
-## Modelle und Lizenzen
+| Taste | Aktion |
+|---|---|
+| 1–9 | Hauptstufe 10–90 |
+| 0 | Nicht bewertbar |
+| A / D | Vorheriges / nächstes Bild |
+| W / S | Einen Punkt mehr / weniger |
+| < / > oder − / + | Einen Punkt weniger / mehr |
+| F | Speichern und weiter |
+| C | Ausschnitt per Tastatur beginnen |
+| W A S D bei Tastaturauswahl | Ausschnitt bewegen |
+| Umschalt + W A S D | Ausschnittgröße ändern |
+| F bei Tastaturauswahl | Ausschnitt bestätigen und groß anzeigen; nochmals F speichert |
+| Esc | Original zeigen, Eingabefeld verlassen oder Dialog schließen |
+| R / I / Entf | Neu bewerten / zurückstellen / entfernen |
+| Alt + 1–4 | Arbeitsbereich / Übersicht / Modelle / Einstellungen |
+| Tab / Umschalt + Tab | Alle Bedienelemente erreichen |
+| F1 | Tastaturhilfe |
 
-- [DINOv2 Small – offizielle Modellkarte](https://huggingface.co/facebook/dinov2-small)
-- [Qwen3-VL 2B – offizielle Modellkarte](https://huggingface.co/Qwen/Qwen3-VL-2B-Instruct)
-- [Python: anwendungslokale Windows-Laufzeiten](https://docs.python.org/3.12/using/windows.html)
+In Textfeldern, Zahlenfeldern und Auswahllisten gelten deren normale Tasten. Mit Esc geht der Fokus zurück zum Bild; anschließend speichert F. F funktioniert auch bei fokussiertem Bewertungsregler, Bewertungsknopf und Trainingskästchen. Gedrückthalten von F speichert kein weiteres Bild. Enter bleibt als zusätzliche Bestätigung außerhalb normaler Aktionsknöpfe verfügbar.
 
-Modellkarten und Bibliothekslizenzen werden mitkopiert. Python-Lizenz: `runtime/LICENSE.txt`; Paketlizenzen: `runtime/packages/*.dist-info`. Genaue Modellrevisionen stehen in den jeweiligen `ready.json`-Dateien, die mitgelieferten CPU-Paketversionen in `requirements-resolved.txt`.
+## Übersicht, Änderungen und Ausgabe
+
+Die Bildübersicht filtert nach Dateiname, Herkunftsordner, Status, menschlicher Bewertung, Trainingsfreigabe, Eignung und Modellabweichung. Für Abweichungen zuerst einen ausgewerteten Qualitäts-Trainingsstand wählen. Ein Eignungs-Trainingsstand erlaubt den Filter **KI: unpassend**. Geänderte oder veraltete Ergebnisse werden nicht als aktuelle Abweichung verwendet.
+
+Gefilterte Bilder lassen sich gemeinsam auswählen, fürs Training freigeben oder ausschließen, zurückstellen, entfernen und wiederherstellen. **Neu bewerten** öffnet ein bestätigtes Urteil zum Überarbeiten; die nächste Speicherung erhöht seine Version. Frühere Urteile und Exporte bleiben nachvollziehbar erhalten.
+
+Entfernen ist rückgängig machbar. Unter **Entfernt** lassen sich Bilder wiederherstellen. Entfernte und zurückgestellte Bilder gehen nicht ins Training ein. Ihre bisherigen aktiven Exporte werden unter `data/history` archiviert. Importierte Originalkopien bleiben erhalten.
+
+Ausgabe:
+
+```text
+Ausgabeordner/Herkunftsordner/Unterordner/YYYY-MM-DD_HH-MM-SS_[Originalname]_33.jpg
+Ausgabeordner/Herkunftsordner/Unterordner/YYYY-MM-DD_HH-MM-SS_[Originalname]_50_KI.jpg
+```
+
+Namenskonflikte erhalten einen Zusatz. Unter **Einstellungen → Bestehende Exporte nach Herkunftsordnern neu ablegen** können ältere Exporte neu sortiert werden; Bewertungen bleiben dabei gleich.
+
+## Modelle und Ergebnisse
+
+1. In der Übersicht die gewünschten Beispiele auswählen.
+2. **Mit Auswahl zum Modellbereich** öffnen.
+3. Einen Namen, die Bildmerkmale und die Aufgabe wählen.
+4. Trainingsstand anlegen; er dokumentiert genau seine verwendeten Beispiele, Modellrevision und Methode.
+5. Ausgewählte, bewertete oder offene Bilder auswerten. Einzelbilder und ähnliche Trainingsbeispiele sind direkt aufrufbar.
+
+Drei getrennte Aufgaben:
+
+- **Qualität:** ordinaler Lernkopf plus ähnliche Beispiele. Alternative menschliche Werte bleiben mehrere plausible Ziele. Optionaler Zeitkontext verwendet Zeitabstände und periodische Merkmale innerhalb des Herkunftsordners. Es gibt keine monotone Regel „später bedeutet bessere/schlechtere Qualität“.
+- **Interessanter Ausschnitt:** Bildähnlichkeit überträgt normalisierte Rechtecke bestätigter Beispiele. Das ist ein Vorschlag aus ähnlichen Bildern, kein Objektdetektor. Übernommene Ausschnitte müssen menschlich geprüft und bewertet werden.
+- **Passend / unpassend:** lernt aus ausdrücklich markierten positiven und negativen Beispielen. Bilder werden niemals automatisch entfernt.
+
+Farb-/Texturmerkmale funktionieren sofort offline. DINOv2 Small und Qwen3-VL verwenden ihre lokal installierten, eingefrorenen Bildencoder. Nur kleine Lernköpfe beziehungsweise Ähnlichkeitsmodelle werden aus deiner Auswahl gelernt. Modellkarten zeigen, welche Bilder und Kontextinformationen ein Trainingsstand kennt.
+
+Bei Auswertung eines Trainingsbildes werden dieses Original und byteidentische Kopien vom Training ausgeschlossen, einschließlich Skalierung und Zeitreferenz. Das ist eine interne Prüfung, keine unabhängige Produktionsvalidierung. Unsicherheit, Stufengewichte und Ähnlichkeiten sind Heuristiken. Ein zeitlicher Kontext kann helfen, eine bessere Genauigkeit wird damit nicht zugesichert.
+
+KI-Ergebnisse ersetzen kein menschliches Urteil. **Als KI-Datei exportieren** ergänzt `_KI` im Dateinamen und erzeugt kein menschliches Trainingslabel. Änderungen an relevanten Trainingsdaten markieren davon abhängige Stände als veraltet. Ein neuer Stand lässt sich aus derselben Bildauswahl anlegen.
+
+## Daten und Sicherungen
+
+```text
+data/surface.sqlite3       Bilder, menschliche Urteile, Historie, Trainingsrezepte, KI-Ergebnisse
+data/originals/            Unveränderte Importkopien
+data/output/               JPEG-Ausgabe, nach Herkunftsordnern sortiert
+data/history/              Frühere Exporte
+data/profiles/lab-*/        Benannte Modellstände
+data/backups/              Sicherung vor Datenbankmigration / Code-Aktualisierung
+environments/<modell>/     Installierte Bildencoder und Modellgewichte
+```
+
+Vor der ersten Migration einer älteren Datenbank wird eine vollständige SQLite-Sicherung erstellt. Alte Bewertungen, Ausschnitte und Datumsangaben bleiben unverändert. Regelmäßig den gesamten Datenordner sowie bewusst externe Ausgabeordner sichern; dafür die Anwendung vorher beenden. Beim Umziehen den gesamten portablen Programmordner mitnehmen.
+
+## Entwicklung und Prüfungen
+
+Python 3.12, Pillow und NumPy bilden die lokale Basis. `Setup.bat` richtet die Entwicklungsumgebung ein. Kein externer Dienst ist für den Bewertungsablauf nötig.
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest tests.test_workflow tests.test_workspace_v2 tests.test_portable tests.test_publish -v
+node --check web/app.js
+node tests/test_frontend.cjs
+```
+
+Die Frontendprüfung simuliert die echten Ereignisbehandler für Tastatur, Ausschnitt, Navigation, Entwürfe und Speichern ohne zusätzliche Node-Pakete. Sie ersetzt keine visuelle Browserprüfung.
+
+`scripts/build_portable.py` baut die portable Fassung aus lokalen Laufzeiten und Gewichten. Benannte Trainingsstände und Bewertungshistorie werden mitkopiert. `scripts/publish_github.py` veröffentlicht erst bei ausdrücklichem Aufruf; lokale Änderungen sind keine Veröffentlichung.

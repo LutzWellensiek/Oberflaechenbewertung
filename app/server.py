@@ -20,58 +20,12 @@ from .storage import DATA, ROOT, connection, image_row, initialize, label_datase
 from .portable import is_portable
 
 TOKEN = secrets.token_urlsafe(32)
-SAVE_LOCK = threading.Lock()
+from .workspace import SAVE_LOCK, change_image, list_images, rebuild_exports, save_human_label
+from .model_lab import create_run, evaluate_run, export_ai, list_runs
 
 
 def save_label(body):
-    with SAVE_LOCK:
-        row = image_row(body["image_id"])
-        if row["status"] != "pending":
-            raise ValueError("Dieses Bild ist bereits abgeschlossen. Es wird nicht erneut exportiert.")
-        score = body.get("score")
-        if isinstance(score, bool) or not isinstance(score, int) or not 10 <= score <= 100:
-            raise ValueError("Bitte eine ganze Bewertung zwischen 10 und 100 auswählen.")
-        crop = checked_crop(body["crop"], row["width"], row["height"])
-        captured = normalize_date(body["date"])
-        source = str(body.get("date_source", "manual"))
-        model_id = body.get("model_id", "manual")
-        if model_id not in MODELS:
-            raise ValueError("Ungültiges Modell.")
-        date_options = json.loads(row["dates"])
-        if source != "manual" and date_options.get(source) != captured:
-            raise ValueError("Datumsquelle passt nicht zum Datum. Für eine Korrektur 'Manuell' wählen.")
-        output = Path(setting("output", str(DATA / "output"))).resolve()
-        if output == DATA / "originals" or (DATA / "originals") in output.parents:
-            raise ValueError("Der Originalordner ist kein Ausgabeordner.")
-        output.mkdir(parents=True, exist_ok=True)
-        name = filename(captured, row["relative_name"], score)
-        payload = jpeg_bytes(crop_image(row, crop))
-        target, suffix = output / name, 1
-        while True:
-            try:
-                with target.open("xb") as stream:
-                    stream.write(payload)
-                break
-            except FileExistsError:
-                target = output / (Path(name).stem + f"_{suffix}.jpg")
-                suffix += 1
-        try:
-            with connection() as db:
-                prediction_id = body.get("prediction_id")
-                if prediction_id:
-                    p = db.execute("SELECT * FROM predictions WHERE id=?", (prediction_id,)).fetchone()
-                    if not p or p["image_id"] != row["id"] or p["model_id"] != model_id or json.loads(p["crop"]) != crop or p["criteria"] != setting("criteria", DEFAULT_CRITERIA):
-                        raise ValueError("Vorhersage gehört zu einem anderen Ausschnitt oder Modell. Bitte neu bewerten.")
-                db.execute('''INSERT INTO labels (image_id,score,coarse,crop,captured_at,date_source,output_path,
-                              model_id,prediction_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)''',
-                           (row["id"], score, (coarse_class(score) + 1) * 10, json.dumps(crop), captured, source,
-                            str(target), model_id, prediction_id, now()))
-                db.execute("UPDATE images SET status='rated', chosen_date=?,date_source=?,draft=NULL WHERE id=?", (captured, source, row["id"]))
-        except BaseException:
-            target.unlink(missing_ok=True)
-            raise
-        training = ENGINE.jobs.submit("Lernmodell aktualisieren", lambda progress: ENGINE.train(model_id, progress))
-        return {"saved": str(target), **training}
+    return save_human_label(body)
 
 
 def browse_folder():
@@ -101,11 +55,16 @@ def state():
                             "mae": round(sum(abs(r["actual"]-r["predicted"]) for r in records)/len(records), 2) if records else None,
                             "stage_accuracy": round(sum(coarse_class(r["actual"]) == coarse_class(r["predicted"]) for r in records)/len(records), 3) if records else None})
     dataset = label_dataset()
-    return {"token": TOKEN, "dataset": dataset, "counts": {"total": total, "pending": counts.get("pending", 0), "rated": counts.get("rated", 0), "ignored": counts.get("ignored", 0)},
+    return {"token": TOKEN, "dataset": dataset, "counts": {"total": total, "pending": counts.get("pending", 0), "rated": counts.get("rated", 0), "ignored": counts.get("ignored", 0), "removed": counts.get("removed", 0)},
             "instance_root": str(ROOT), "process_id": os.getpid(), "portable": is_portable(ROOT),
             "model_id": setting("model_id", "manual") if setting("model_id", "manual") in MODELS else "manual", "criteria": setting("criteria", DEFAULT_CRITERIA),
             "output": setting("output", str(DATA / "output")), "models": [ENGINE.status(m, dataset) for m in MODELS],
-            "metrics": metrics, "benchmark": latest_benchmark(), "errors": recent_errors(10)}
+            "runs": list_runs(), "folders": sorted({r[0] for r in _folders()}), "metrics": metrics, "benchmark": latest_benchmark(), "errors": recent_errors(10)}
+
+
+def _folders():
+    with connection() as db:
+        return db.execute("SELECT DISTINCT origin_folder FROM images ORDER BY origin_folder").fetchall()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -157,13 +116,9 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/api/benchmark":
             return self.send({"report": latest_benchmark(), "jobs": ENGINE.jobs.active("Gespeicherte Bilder testen")})
         if url.path == "/api/images":
-            status = query.get("status", ["pending"])[0]
-            if status not in ("pending", "rated", "ignored"):
-                raise ValueError("Ungültiger Bildstatus.")
-            with connection() as db:
-                rows = [dict(r) for r in db.execute('''SELECT i.id,i.relative_name,i.width,i.height,i.status,l.score
-                         FROM images i LEFT JOIN labels l ON l.image_id=i.id WHERE i.status=? ORDER BY i.id''', (status,))]
-            return self.send(rows)
+            return self.send(list_images(query))
+        if url.path == "/api/model-runs":
+            return self.send(list_runs())
         if url.path == "/api/image":
             row = image_row(query["id"][0])
             row["dates"] = json.loads(row["dates"])
@@ -171,6 +126,8 @@ class Handler(BaseHTTPRequestHandler):
             with connection() as db:
                 row["label"] = dict(r) if (r := db.execute("SELECT * FROM labels WHERE image_id=?", (row["id"],)).fetchone()) else None
                 row["predictions"] = [dict(r) for r in db.execute("SELECT id,model_id,crop,score,uncertainty,result FROM predictions WHERE image_id=? ORDER BY id DESC LIMIT 30", (row["id"],))]
+                row["history"] = [dict(r) for r in db.execute("SELECT action,snapshot,created_at FROM label_history WHERE image_id=? ORDER BY id DESC LIMIT 30", (row["id"],))]
+                row["model_results"] = [dict(r) for r in db.execute("SELECT * FROM model_results WHERE image_id=? ORDER BY created_at DESC", (row["id"],))]
             return self.send(row)
         if url.path == "/api/photo":
             row = image_row(query["id"][0])
@@ -183,10 +140,10 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/api/export":
             stream = io.StringIO(newline="")
             writer = csv.writer(stream, delimiter=";")
-            writer.writerow(["image_id", "original", "score", "main_stage", "crop_xyxy", "date", "date_source", "output", "model", "all_original_dates"])
+            writer.writerow(["image_id", "original", "score", "main_stage", "crop_xyxy", "date", "date_source", "output", "model", "all_original_dates", "provenance", "revision", "alternatives", "training_enabled"])
             with connection() as db:
                 for row in db.execute("SELECT l.*,i.source,i.dates FROM labels l JOIN images i ON i.id=l.image_id WHERE i.status='rated' ORDER BY l.id"):
-                    writer.writerow([row["image_id"], row["source"], row["score"], row["coarse"], row["crop"], row["captured_at"], row["date_source"], row["output_path"], row["model_id"], row["dates"]])
+                    writer.writerow([row["image_id"], row["source"], row["score"], row["coarse"], row["crop"], row["captured_at"], row["date_source"], row["output_path"], row["model_id"], row["dates"], row["provenance"], row["revision"], row["alternatives"], row["training_enabled"]])
             return self.send(stream.getvalue().encode("utf-8-sig"), "text/csv; charset=utf-8")
         if url.path == "/favicon.ico":
             return self.send(b"", "image/x-icon", 204)
@@ -258,6 +215,9 @@ class Handler(BaseHTTPRequestHandler):
                 draft = body["draft"]
                 draft["crop"] = checked_crop(draft["crop"], row["width"], row["height"])
                 with connection() as db:
+                    label = db.execute("SELECT revision FROM labels WHERE image_id=?", (row["id"],)).fetchone()
+                    if body.get("expected_revision", label[0] if label else 0) != (label[0] if label else 0):
+                        return self.send({"ok": True, "ignored": True})
                     db.execute("UPDATE images SET draft=? WHERE id=? AND status='pending'", (json.dumps(draft), row["id"]))
             return self.send({"ok": True})
         if path == "/api/client-error":
@@ -275,13 +235,18 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(ENGINE.jobs.submit("Gespeicherte Bilder testen", lambda progress: run_benchmark(ENGINE, model_ids, progress, bool(body.get("include_raw", False))), unique_title=True))
         if path == "/api/save":
             return self.send(save_label(body))
+        if path == "/api/rebuild-exports":
+            return self.send(ENGINE.jobs.submit("Ausgabe nach Herkunft ablegen", rebuild_exports, unique_title=True))
         if path == "/api/ignore":
-            with SAVE_LOCK, connection() as db:
-                row = image_row(body["image_id"])
-                if row["status"] == "rated":
-                    raise ValueError("Ein bereits bewertetes Bild kann nicht stillschweigend ignoriert werden.")
-                db.execute("UPDATE images SET status=?,draft=NULL WHERE id=?", ("pending" if body.get("restore") else "ignored", row["id"]))
-            return self.send({"ok": True})
+            return self.send(change_image({**body, "action": "restore" if body.get("restore") else "ignore"}))
+        if path == "/api/image-state":
+            return self.send(change_image(body))
+        if path == "/api/model-runs/train":
+            return self.send(ENGINE.jobs.submit("Trainingsstand anlegen", lambda progress: create_run(ENGINE, body, progress)))
+        if path == "/api/model-runs/evaluate":
+            return self.send(ENGINE.jobs.submit("Trainingsstand auswerten", lambda progress: evaluate_run(ENGINE, body, progress)))
+        if path == "/api/model-runs/export":
+            return self.send(export_ai(body))
         if path == "/api/install":
             model_id = body["model_id"]
             ENGINE.profile(model_id)

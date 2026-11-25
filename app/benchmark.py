@@ -56,8 +56,9 @@ def run_benchmark(engine, model_ids, progress=lambda text: None, include_raw=Fal
     for model_id in model_ids:
         engine.profile(model_id)
     with connection() as db:
-        labels = [dict(r) for r in db.execute('''SELECT l.*,i.stored_path,i.width,i.height,i.relative_name FROM labels l
-                    JOIN images i ON i.id=l.image_id WHERE i.status='rated' ORDER BY l.id''')]
+        labels = [dict(r) for r in db.execute('''SELECT l.*,i.stored_path,i.width,i.height,i.origin_folder,i.relative_name FROM labels l
+                    JOIN images i ON i.id=l.image_id WHERE i.status='rated' AND l.score BETWEEN 10 AND 99
+                    AND l.training_enabled=1 AND l.provenance!='ai' ORDER BY l.id''')]
     if not labels:
         raise ValueError("Noch keine bestätigten Ausschnitte zum Testen vorhanden.")
     snapshot = label_dataset(labels)

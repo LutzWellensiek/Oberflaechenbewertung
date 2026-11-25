@@ -96,7 +96,7 @@ class Engine:
         return model_id + ":" + revision
 
     def training_signature(self, model_id, dataset):
-        return hashlib.sha256((dataset["signature"] + ":" + self.feature_key(model_id)).encode()).hexdigest()
+        return hashlib.sha256((dataset["signature"] + ":quality-v2:" + self.feature_key(model_id)).encode()).hexdigest()
 
     def status(self, model_id, dataset=None):
         profile = self.profile(model_id)
@@ -244,8 +244,9 @@ class Engine:
             return {"count": 0, "waiting_for_install": True,
                     "message": "Alle Bewertungen bleiben gespeichert und werden nach Modellinstallation automatisch übernommen."}
         with connection() as db:
-            labels = [dict(r) for r in db.execute('''SELECT l.*,i.stored_path,i.width,i.height FROM labels l
-                         JOIN images i ON i.id=l.image_id WHERE i.status='rated' ORDER BY l.id''')]
+            labels = [dict(r) for r in db.execute('''SELECT l.*,i.stored_path,i.width,i.height,i.origin_folder FROM labels l
+                         JOIN images i ON i.id=l.image_id WHERE i.status='rated' AND l.score BETWEEN 10 AND 99
+                         AND l.training_enabled=1 AND l.provenance!='ai' ORDER BY l.id''')]
         if not labels:
             return {"count": 0, "message": "Noch keine bestätigten Bewertungen vorhanden."}
         signature = self.training_signature(model_id, label_dataset(labels))
@@ -298,8 +299,9 @@ class Engine:
             from .benchmark import file_hash
             source_hash = file_hash(row["stored_path"])
             with connection() as db:
-                other = [dict(r) for r in db.execute('''SELECT l.*,i.stored_path,i.width,i.height FROM labels l
-                            JOIN images i ON i.id=l.image_id WHERE i.status='rated' AND i.id<>? ORDER BY l.id''', (image_id,))]
+                other = [dict(r) for r in db.execute('''SELECT l.*,i.stored_path,i.width,i.height,i.origin_folder FROM labels l
+                            JOIN images i ON i.id=l.image_id WHERE i.status='rated' AND l.score BETWEEN 10 AND 99
+                            AND l.training_enabled=1 AND l.provenance!='ai' AND i.id<>? ORDER BY l.id''', (image_id,))]
             train_vectors, train_scores = [], []
             key = self.feature_key(model_id)
             for label in other:

@@ -18,12 +18,17 @@ class PortableTests(unittest.TestCase):
         try:
             db.executescript("""CREATE TABLE images(id INTEGER,source TEXT,stored_path TEXT);
                 CREATE TABLE labels(id INTEGER,score INTEGER,crop TEXT,output_path TEXT);
-                CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT);""")
+                CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT);
+                CREATE TABLE model_runs(id TEXT,recipe TEXT);
+                CREATE TABLE label_history(id INTEGER,snapshot TEXT);""")
             db.execute("INSERT INTO images VALUES (1,'E:/camera/picture.jpg',?)", (str(old / "data/originals/picture.jpg"),))
             db.execute("INSERT INTO labels VALUES (1,73,'[1,2,3,4]',?)", (str(old / "data/output/picture_73.jpg"),))
             external = str(ROOT / "external export" / "other.jpg")
             db.execute("INSERT INTO labels VALUES (2,25,'[0,0,3,4]',?)", (external,))
             db.execute("INSERT INTO settings VALUES ('output',?)", (json.dumps(str(old / "data/output")),))
+            db.execute("INSERT INTO model_runs VALUES ('run',?)", (json.dumps({"samples": [{
+                "stored_path": str(old / "data/originals/picture.jpg"), "output_path": external}]}),))
+            db.execute("INSERT INTO label_history VALUES (1,?)", (json.dumps({"output_path": str(old / "data/history/previous.jpg")}),))
             relocate_database(db, old, new)
             self.assertEqual(db.execute("SELECT source,stored_path FROM images").fetchone(),
                              ("E:/camera/picture.jpg", str(new / "data/originals/picture.jpg")))
@@ -31,6 +36,11 @@ class PortableTests(unittest.TestCase):
                              (73, "[1,2,3,4]", str(new / "data/output/picture_73.jpg")))
             self.assertEqual(db.execute("SELECT output_path FROM labels WHERE id=2").fetchone()[0], external)
             self.assertEqual(json.loads(db.execute("SELECT value FROM settings WHERE key='output'").fetchone()[0]), str(new / "data/output"))
+            sample = json.loads(db.execute("SELECT recipe FROM model_runs").fetchone()[0])["samples"][0]
+            self.assertEqual(sample["stored_path"], str(new / "data/originals/picture.jpg"))
+            self.assertEqual(sample["output_path"], external)
+            self.assertEqual(json.loads(db.execute("SELECT snapshot FROM label_history").fetchone()[0])["output_path"],
+                             str(new / "data/history/previous.jpg"))
         finally:
             db.close()
 

@@ -32,8 +32,8 @@ def parse_score(text):
     if data is None:
         raise ValueError("Das Modell hat keine gültige JSON-Bewertung geliefert. Antwort: " + text[:400])
     score = data.get("score")
-    if isinstance(score, bool) or not isinstance(score, int) or not 10 <= score <= 100:
-        raise ValueError("Modellscore muss eine ganze Zahl zwischen 10 und 100 sein.")
+    if isinstance(score, bool) or not isinstance(score, int) or not (score == 0 or 10 <= score <= 99):
+        raise ValueError("Modellscore: 0 = nicht bewertbar, sonst eine ganze Zahl von 10 bis 99.")
     return {"score": score, "reason": str(data.get("reason", ""))[:2000], "truncated": truncated}
 
 
@@ -141,8 +141,8 @@ def main():
                 else:
                     limit = 448 if device == "cuda" and config.get("quantization") == "nf4" else 768
                     image.thumbnail((limit, limit))
-                    prompt = ("Evaluate the visible surface quality using the user's criteria. 10 is the lowest quality, "
-                              "100 the highest. Return ONLY a JSON object with two fields: score (integer) and reason "
+                    prompt = ("Evaluate the visible surface quality using the user's criteria. 0 means not assessable. 10 is the lowest quality, "
+                              "99 the highest. Return ONLY a JSON object with two fields: score (integer) and reason "
                               "(ONE short sentence, at most 12 words). No Markdown. Stop after the closing brace. "
                               "First choose the main quality stage in tens, then refine within that stage (70..79 belong to 70). "
                               "Criteria: " + request["criteria"])

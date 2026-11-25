@@ -83,7 +83,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(len(result["errors"]), 1)
         duplicate = self.job(self.request("/api/import", {"folder": str(folder)})["job"])
         self.assertEqual(duplicate["duplicates"], 3)
-        rows = self.request("/api/images")
+        rows = self.request("/api/images?order=name")
         ids = [r["id"] for r in rows]
         first = self.request("/api/image?id=" + str(ids[0]))
         self.assertEqual(first["chosen_date"], "2026-11-17T09:35:21")
@@ -95,9 +95,8 @@ class WorkflowTests(unittest.TestCase):
         cold = self.job(self.request("/api/predict", {"image_id": ids[0], "model_id": "manual", "crop": crop})["job"])
         self.assertIsNone(cold["score"])
         saved = self.request("/api/save", {"image_id": ids[0], "model_id": "manual", **draft, "prediction_id": cold["prediction_id"]})
-        self.job(saved["job"])
         output = Path(saved["saved"])
-        self.assertEqual(output.name, "2026-11-17_09-35-21_Oberflaeche01_73.jpg")
+        self.assertEqual(output.name, "2026-11-17_09-35-21_[Oberflaeche01]_73.jpg")
         with Image.open(output) as image:
             self.assertEqual(image.size, (120, 70))
         self.assertEqual(hashlib.sha256(original.read_bytes()).digest(), digest)
@@ -118,20 +117,20 @@ class WorkflowTests(unittest.TestCase):
         self.assertLessEqual(predicted["score"], 100)
         saved2 = self.request("/api/save", {"image_id": ids[1], "model_id": "manual", "crop": crop, "score": 73,
                      "date": second["chosen_date"], "date_source": "exif_original", "prediction_id": predicted["prediction_id"]})
-        self.job(saved2["job"])
-        self.assertTrue(saved2["saved"].endswith("_73_1.jpg"))
+        self.assertTrue(saved2["saved"].endswith("_73.jpg"))
+        self.assertNotEqual(Path(saved["saved"]).parent, Path(saved2["saved"]).parent)
         self.request("/api/ignore", {"image_id": ids[2]})
-        self.assertEqual(self.request("/api/state")["counts"], {"total": 3, "pending": 0, "rated": 2, "ignored": 1})
+        self.assertEqual(self.request("/api/state")["counts"], {"total": 3, "pending": 0, "rated": 2, "ignored": 1, "removed": 0})
         with connection() as db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM labels").fetchone()[0], 2)
-        self.assertEqual(len(list((DATA / "output").glob("*.jpg"))), 2)
+        self.assertEqual(len(list((DATA / "output").rglob("*.jpg"))), 2)
         csv = self.request("/api/export", raw=True).decode("utf-8-sig")
         self.assertIn("main_stage", csv)
         self.assertNotIn("skip.png", csv)
         self.request("/api/ignore", {"image_id": ids[2], "restore": True})
         ranking = self.job(self.request("/api/active", {"model_id": "manual"})["job"])
         self.assertEqual(ranking[0]["id"], ids[2])
-        for bad_score in (9, 101, 10.5, True):
+        for bad_score in (9, 100, 101, 10.5, True):
             with self.assertRaises(urllib.error.HTTPError) as error:
                 self.request("/api/save", {"image_id": ids[2], "score": bad_score, "crop": [0, 0, 20, 20], "date": "2026-11-17T00:00:00"})
             self.assertEqual(error.exception.code, 400)
@@ -144,7 +143,7 @@ class WorkflowTests(unittest.TestCase):
         # train a separate head without changing, duplicating or relabeling them.
         with connection() as db:
             saved_labels = [dict(r) for r in db.execute("SELECT * FROM labels ORDER BY id")]
-        saved_files = {str(p): hashlib.sha256(p.read_bytes()).digest() for p in (DATA / "output").glob("*.jpg")}
+        saved_files = {str(p): hashlib.sha256(p.read_bytes()).digest() for p in (DATA / "output").rglob("*.jpg")}
         waiting = self.job(self.request("/api/settings", {"model_id": "qwen3vl-2b"})["sync_job"])
         self.assertTrue(waiting["waiting_for_install"])
         self.assertEqual(self.request("/api/state")["dataset"]["count"], 2)
@@ -176,13 +175,12 @@ class WorkflowTests(unittest.TestCase):
             initialize()
             with connection() as db:
                 self.assertEqual([dict(r) for r in db.execute("SELECT * FROM labels ORDER BY id")], saved_labels)
-            self.assertEqual({str(p): hashlib.sha256(p.read_bytes()).digest() for p in (DATA / "output").glob("*.jpg")}, saved_files)
+            self.assertEqual({str(p): hashlib.sha256(p.read_bytes()).digest() for p in (DATA / "output").rglob("*.jpg")}, saved_files)
             # A new human label makes the other profile stale, and switching back
             # automatically catches it up using the same saved ground truth.
             third = self.request("/api/image?id=" + str(ids[2]))
             saved3 = self.request("/api/save", {"image_id": ids[2], "model_id": "manual", "score": 47,
                        "crop": [0, 0, 40, 40], "date": third["chosen_date"], "date_source": "manual"})
-            self.job(saved3["job"])
             models = {m["id"]: m for m in self.request("/api/state")["models"]}
             self.assertFalse(models["qwen3vl-2b"]["head"]["up_to_date"])
             self.assertEqual(models["qwen3vl-2b"]["head"]["available"], 3)

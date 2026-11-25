@@ -1,5 +1,6 @@
 """Build offline from the already installed, pinned CPU environment and weights."""
 import argparse
+from contextlib import closing
 from datetime import datetime
 import hashlib
 import json
@@ -43,7 +44,7 @@ def snapshot(target):
     data.mkdir(exist_ok=True)
     path = data / "surface.sqlite3"
     path.unlink(missing_ok=True)  # Only the explicitly marked build staging is writable here.
-    with sqlite3.connect(ROOT / "data" / "surface.sqlite3") as source, sqlite3.connect(path) as db:
+    with closing(sqlite3.connect(ROOT / "data" / "surface.sqlite3")) as source, closing(sqlite3.connect(path)) as db:
         source.backup(db)
         db.row_factory = sqlite3.Row
         files = []
@@ -52,7 +53,13 @@ def snapshot(target):
                 old = Path(row[column])
                 if not old.is_absolute():
                     old = ROOT / old
-                new = data / folder / old.name
+                try:
+                    relative = old.relative_to(ROOT / "data")
+                    if relative.parts[0] not in ("originals", "output", "history"):
+                        raise ValueError("External or unmanaged export")
+                    new = data / relative
+                except ValueError:
+                    new = data / folder / old.name
                 if new.exists() and digest(new) != digest(old):
                     new = new.with_name(new.stem + "_" + str(row["id"]) + new.suffix)
                 new.parent.mkdir(parents=True, exist_ok=True)
@@ -65,16 +72,40 @@ def snapshot(target):
         original_labels = [dict(zip(("id", "image_id", "score", "crop", "captured_at", "date_source", "created_at"), row))
                            for row in source.execute("SELECT id,image_id,score,crop,captured_at,date_source,created_at FROM labels ORDER BY id")]
         assert labels == original_labels, "Nutzerbewertungen wurden beim Verpacken verändert."
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "model_runs" in tables:
+            image_paths = dict(db.execute("SELECT id,stored_path FROM images"))
+            for run_id, text in db.execute("SELECT id,recipe FROM model_runs").fetchall():
+                recipe = json.loads(text)
+                for sample in recipe.get("samples", []):
+                    if sample["id"] in image_paths:
+                        sample["stored_path"] = image_paths[sample["id"]]
+                    if sample.get("output_path"):
+                        old = Path(sample["output_path"])
+                        try:
+                            sample["output_path"] = str(data / old.relative_to(ROOT / "data"))
+                        except ValueError:
+                            pass
+                db.execute("UPDATE model_runs SET recipe=? WHERE id=?", (json.dumps(recipe, ensure_ascii=False), run_id))
+        if "label_history" in tables:
+            for history_id, text in db.execute("SELECT id,snapshot FROM label_history").fetchall():
+                previous = json.loads(text)
+                if previous.get("output_path"):
+                    try:
+                        previous["output_path"] = str(data / Path(previous["output_path"]).relative_to(ROOT / "data"))
+                    except ValueError:
+                        pass
+                    db.execute("UPDATE label_history SET snapshot=? WHERE id=?", (json.dumps(previous, ensure_ascii=False), history_id))
         db.execute("INSERT OR REPLACE INTO settings VALUES ('output',?)", (json.dumps(str(data / "output")),))
         db.execute("INSERT OR REPLACE INTO settings VALUES ('portable_root',?)", (json.dumps(str(target)),))
         current = db.execute("SELECT value FROM settings WHERE key='model_id'").fetchone()
         if not current or json.loads(current[0]) not in MODELS:
             db.execute("INSERT OR REPLACE INTO settings VALUES ('model_id','\"manual\"')")
         db.commit()
-    for model in MODELS:
-        source = ROOT / "data" / "profiles" / model
+    for folder in ("profiles", "history"):
+        source = ROOT / "data" / folder
         if source.exists():
-            copy_tree(source, data / "profiles" / model)
+            copy_tree(source, data / folder)
     if (ROOT / "data" / "benchmarks").exists():
         copy_tree(ROOT / "data" / "benchmarks", data / "benchmarks")
     (data / "portable-snapshot.json").write_text(json.dumps({"created_at": datetime.now().isoformat(), "labels": labels, "files": files}, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -152,7 +183,7 @@ Das angelernte Qualitätsmodell wertet dessen eigene Bildmerkmale aus. Die zusä
 Die vollständigen Sprachmodellgewichte sind enthalten; optionale Rohbewertungen benötigen etwa 6 GB freien RAM und können deutlich länger dauern.
 DINOv2 ist für diesen Rechner der sparsamere Einstieg.
 Es sind {count} feste Nutzerbewertungen samt Originalkopien, Ausschnitten und Lernständen enthalten.
-Passende CPU-Lernst?nde und Bildmerkmale sind bereits enthalten; deine Bewertungen bleiben gleich.
+Benannte Lernstände und die Bewertungshistorie werden mitkopiert; deine Bewertungen bleiben gleich.
 
 DATEN: 'data' enthält die Datenbank, Originalkopien, Ausschnitte und Lernstände. Diesen Ordner sichern.
 KOPIEREN: Den ganzen Programmordner kopieren. Nur die kleine Start-EXE reicht bei der Ordnerfassung nicht.
@@ -198,6 +229,7 @@ def package(target):
             stream.write(b"SFLAB01!" + struct.pack("<q", offset))
         checksum = digest(single)
         (output / (single.name + ".sha256")).write_text(checksum + "  " + single.name + "\n", encoding="ascii")
+        shutil.copy2(target / "BITTE_LESEN.txt", output / "BITTE_LESEN.txt")
         print("Einzelne Paket-EXE bereit:", single, flush=True)
         archive.unlink()  # The completed EXE contains exactly the same archive.
     else:

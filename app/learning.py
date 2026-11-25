@@ -15,6 +15,8 @@ def coarse_class(score):
 
 
 def weighted_error(actual, predicted):
+    if actual == 0 or predicted == 0:
+        return 0.0 if actual == predicted else 1.0
     return COARSE_WEIGHT * abs(coarse_class(actual) - coarse_class(predicted)) / 9 + FINE_WEIGHT * abs(actual - predicted) / 90
 
 
@@ -24,10 +26,24 @@ def head_path(model_id):
     return path / "head.npz"
 
 
-def fit_parameters(vectors, scores, label_ids=(), dataset_signature=""):
+def fit_parameters(vectors, scores, label_ids=(), dataset_signature="", alternatives=None):
+    count = len(vectors)
+    if not count:
+        raise ValueError("Keine bewertbaren Trainingsbilder ausgewählt.")
+    if any(not 10 <= s <= 99 for s in scores):
+        raise ValueError("0 bedeutet nicht bewertbar und gehört nicht ins Qualitätstraining. Werte: 10–99.")
+    original_x = np.asarray(vectors, dtype=np.float64)
+    sample_weights = np.ones(count)
+    if alternatives:
+        expanded = []
+        for vector, score, options in zip(vectors, scores, alternatives):
+            possible = [s for s in dict.fromkeys([score, *options]) if 10 <= s <= 99]
+            expanded.extend((vector, s, 1 / len(possible)) for s in possible)
+        vectors, scores, sample_weights = zip(*expanded)
+        sample_weights = np.asarray(sample_weights)
     x = np.asarray(vectors, dtype=np.float64)
     y = np.asarray([coarse_class(s) for s in scores])
-    mean, scale = x.mean(0), np.maximum(x.std(0), 0.03)
+    mean, scale = original_x.mean(0), np.maximum(original_x.std(0), 0.03)
     z = np.column_stack([np.clip((x - mean) / scale, -5, 5), np.ones(len(x))])
     z[:, :-1] /= np.sqrt(x.shape[1])
     weights = np.zeros((z.shape[1], 10))
@@ -41,12 +57,12 @@ def fit_parameters(vectors, scores, label_ids=(), dataset_signature=""):
         p /= p.sum(axis=1, keepdims=True)
         ordinal_gradient = p * (distances - (p * distances).sum(axis=1, keepdims=True))
         gradient = COARSE_WEIGHT * (p - target + ordinal_gradient)
-        weights -= 0.3 * (z.T @ gradient / len(x) + 0.005 * weights)
+        weights -= 0.3 * (z.T @ (gradient * sample_weights[:, None]) / count + 0.005 * weights)
         residual = (z @ fine)[np.arange(len(x)), y] - fine_target
         fine_gradient = np.zeros_like(p)
         fine_gradient[np.arange(len(x)), y] = 2 * FINE_WEIGHT * residual
-        fine -= 0.3 * (z.T @ fine_gradient / len(x) + 0.005 * fine)
-    return dict(mean=mean, scale=scale, weights=weights, fine=fine, count=len(x),
+        fine -= 0.3 * (z.T @ (fine_gradient * sample_weights[:, None]) / count + 0.005 * fine)
+    return dict(mean=mean, scale=scale, weights=weights, fine=fine, count=count, scoring_version=2,
                 label_ids=np.array(label_ids), classes=np.unique(y), dataset_signature=dataset_signature)
 
 
@@ -80,7 +96,7 @@ def predict_parameters(state, vector):
     probabilities /= probabilities.sum()
     selected = int(probabilities.argmax())
     fine = int(round(np.clip((z @ state["fine"])[selected], 0, 1) * 9))
-    score = min(100, (selected + 1) * 10 + fine)
+    score = min(99, (selected + 1) * 10 + fine)
     count = int(state["count"])
     entropy = float(-np.sum(probabilities * np.log(probabilities + 1e-12)) / np.log(10))
     uncertainty = max(entropy, max(0, 1 - count / 30))

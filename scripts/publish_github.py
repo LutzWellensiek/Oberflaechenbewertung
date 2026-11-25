@@ -252,7 +252,7 @@ def publish(manifest, preview):
         resumed = None
         number += 1; tag = "v1.0.0-cpu-" + str(number)
     notes = ("Portable CPU-Version für Windows 10/11 (64 Bit), ohne Python-Installation.\n\n"
-             "Enthält Basislernmodell, DINOv2 Small, Qwen3-VL 2B und den Schnappschuss der 36 Nutzerbewertungen.\n\n"
+             "Enthält Basislernmodell, DINOv2 Small, Qwen3-VL 2B und den Schnappschuss der gespeicherten Nutzerbewertungen.\n\n"
              "**Download:** Beide `.part`-Dateien und `Zusammenfuegen.bat` in denselben Ordner laden. "
              "Die BAT doppelklicken; sie erstellt und prüft die vollständige EXE. Anschließend die EXE starten. "
              "Beim ersten Start wird der Programmordner daneben ausgepackt. Zusammenfügen und Auspacken brauchen vorübergehend etwa 13 GB Platz einschließlich Downloads. "

@@ -11,7 +11,7 @@ if errorlevel 1 goto failed
 move /y "Oberflaechenbewertung-CPU.exe.joining" "Oberflaechenbewertung-CPU.exe" >nul
 :verify
 echo Pruefe SHA256. Dies kann etwas dauern.
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "$actual=(Get-FileHash -LiteralPath './Oberflaechenbewertung-CPU.exe' -Algorithm SHA256).Hash; if ($actual -ne 'b4b73116eda4fd5625c6d6704c2de0bf7e50a20053b74e4e9324c5fcf8f16792') { Write-Host 'Pruefsumme stimmt nicht. Bitte beide Teile erneut herunterladen.'; exit 1 }"
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "$actual=(Get-FileHash -LiteralPath './Oberflaechenbewertung-CPU.exe' -Algorithm SHA256).Hash; if ($actual -ne 'd857eca03f29e728e3f78404cf5c5fc428303ff4d4c7d5c2fe4a6894460d0596') { Write-Host 'Pruefsumme stimmt nicht. Bitte beide Teile erneut herunterladen.'; exit 1 }"
 if errorlevel 1 goto failed
 echo Fertig. Starte Oberflaechenbewertung-CPU.exe per Doppelklick.
 echo Die EXE entpackt beim ersten Start ihren Programmordner neben sich.

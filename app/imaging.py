@@ -106,9 +106,10 @@ def import_folder(folder, recursive=True, progress=lambda text: None):
             shutil.copy2(path, target)
             with connection() as db:
                 db.execute('''INSERT INTO images (source,relative_name,fingerprint,stored_path,width,height,
-                           dates,chosen_date,date_source,warning,imported_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+                           dates,chosen_date,date_source,warning,imported_at,origin_folder) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
                            (str(path), str(path.relative_to(root)), fingerprint, str(target), *img.size,
-                            json.dumps(dates), dates[source], source, warning, now()))
+                            json.dumps(dates), dates[source], source, warning, now(),
+                            str(Path(root.name) / path.relative_to(root).parent)))
             imported += 1
         except Exception as exc:
             errors.append({"file": str(path), "error": str(exc)})
@@ -140,7 +141,7 @@ def jpeg_bytes(img, max_size=None):
 def filename(date, original, score):
     stem = unicodedata.normalize("NFKD", Path(original).stem).encode("ascii", "ignore").decode()
     stem = re.sub(r"[^A-Za-z0-9_-]+", "_", stem).strip("_.")[:70] or "Bild"
-    return datetime.fromisoformat(date).strftime("%Y-%m-%d_%H-%M-%S") + f"_{stem}_{score}.jpg"
+    return datetime.fromisoformat(date).strftime("%Y-%m-%d_%H-%M-%S") + f"_[{stem}]_{score}.jpg"
 
 
 def texture_features(image):

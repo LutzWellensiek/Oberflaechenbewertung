@@ -1,18 +1,18 @@
 {
   "exe": "Oberflaechenbewertung-CPU.exe",
-  "exe_bytes": 3680279319,
-  "exe_sha256": "b4b73116eda4fd5625c6d6704c2de0bf7e50a20053b74e4e9324c5fcf8f16792",
-  "created_at": "2026-11-18T17:57:50.262557",
+  "exe_bytes": 3708133865,
+  "exe_sha256": "d857eca03f29e728e3f78404cf5c5fc428303ff4d4c7d5c2fe4a6894460d0596",
+  "created_at": "2026-11-25T19:50:24.365943",
   "parts": [
     {
       "name": "Oberflaechenbewertung-CPU.exe.part01",
       "bytes": 1992294400,
-      "sha256": "3b21353953a370278ff9b340ddca5d05ef1d3780e5d80d3a8746681f8efeeb71"
+      "sha256": "93d10abdfad86c1c416aca37ee0384990cc3aa4faed828272ebf6d2332d6dac7"
     },
     {
       "name": "Oberflaechenbewertung-CPU.exe.part02",
-      "bytes": 1687984919,
-      "sha256": "1b7906a5ce409f84cfb0ec0be5180c6eda3b1e6853553e6e40b2109aa67b9b3d"
+      "bytes": 1715839465,
+      "sha256": "df66f2898690cee2e0740525680c1fc541e04839362a22d320926b92d09463ab"
     }
   ]
 }
